@@ -1,0 +1,36 @@
+---
+# Build on Linux/amd64. Mirror and pin the base image by digest in production.
+version: 3
+images:
+  base_image:
+    name: quay.io/centos/centos:stream9
+
+dependencies:
+  python_interpreter:
+    package_system: python3.11
+    python_path: /usr/bin/python3.11
+  ansible_core:
+    package_pip: ansible-core==2.19.3
+  ansible_runner:
+    package_pip: ansible-runner==2.4.1
+  galaxy: ../requirements.yml
+  python:
+    - kubernetes==34.1.0
+    - PyYAML==6.0.3
+  system:
+    - git [platform:rpm]
+    - tar [platform:rpm]
+    - gzip [platform:rpm]
+    - curl [platform:rpm]
+
+additional_build_steps:
+  append_base:
+    - RUN $PKGMGR install -y python3.11-pip && $PKGMGR clean all
+  append_final:
+    - >-
+      RUN test "$(uname -m)" = "x86_64" &&
+      curl -fsSL https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz -o /tmp/helm.tgz &&
+      echo 'a7f81ce08007091b86d8bd696eb4d86b8d0f2e1b9f6c714be62f82f96a594496  /tmp/helm.tgz' | sha256sum -c - &&
+      tar -xzf /tmp/helm.tgz -C /tmp &&
+      install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm &&
+      rm -rf /tmp/helm.tgz /tmp/linux-amd64

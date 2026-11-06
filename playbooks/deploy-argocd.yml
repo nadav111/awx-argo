@@ -1,0 +1,21 @@
+---
+- name: Deploy Argo CD to k3s
+  hosts: "127.0.0.1"
+  connection: local
+  gather_facts: false
+  become: false
+
+  vars:
+    argocd_namespace: argocd
+    argocd_chart_version: "10.14.0"
+    kubeconfig: "{{ lookup('ansible.builtin.env', 'KUBECONFIG') }}"
+
+  tasks:
+    - name: Check cluster credential
+      ansible.builtin.import_tasks: tasks/check.yml
+
+    - name: Create namespace
+      ansible.builtin.import_tasks: tasks/namespace.yml
+
+    - name: Install Argo CD
+      ansible.builtin.import_tasks: tasks/install.yml

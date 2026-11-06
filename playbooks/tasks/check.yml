@@ -1,0 +1,6 @@
+---
+- name: Require the AWX kubeconfig credential
+  ansible.builtin.assert:
+    that:
+      - kubeconfig | length > 0
+    fail_msg: Attach the Kubeconfig credential to this AWX job template.

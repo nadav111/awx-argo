@@ -1,0 +1,11 @@
+---
+server:
+  service:
+    type: ClusterIP
+configs:
+  params:
+    server.insecure: false
+  cm:
+    exec.enabled: "false"
+  rbac:
+    policy.default: ""

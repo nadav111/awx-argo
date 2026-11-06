@@ -1,0 +1,27 @@
+---
+- name: Add the Argo Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+    state: present
+
+- name: Install or upgrade Argo CD and wait for readiness
+  kubernetes.core.helm:
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: true
+    release_name: argocd
+    release_namespace: "{{ argocd_namespace }}"
+    chart_ref: argo/argo-cd
+    chart_version: "{{ argocd_chart_version }}"
+    release_state: present
+    values_files:
+      - "{{ playbook_dir }}/../values/argocd.yml"
+    update_repo_cache: true
+    reset_values: true
+    wait: true
+    timeout: 10m0s
+    atomic: true
+    history_max: 10
+  # Helm output can include Secrets.
+  no_log: true
+  diff: false

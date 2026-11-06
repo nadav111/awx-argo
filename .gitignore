@@ -1,0 +1,11 @@
+.venv/
+.validation/
+context/
+__pycache__/
+*.retry
+*.tgz
+.kube/
+*kubeconfig*
+*.key
+*.pem
+.env
