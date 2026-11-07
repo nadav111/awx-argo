@@ -67,7 +67,7 @@ into the `podinfo` namespace.
 |       |-- namespace.yml          # Ensure the namespace exists
 |       |-- install.yml            # Register the chart repository and deploy
 |       |-- ingress.yml            # Expose Argo CD over HTTP on port 80
-|       `-- sample-app.yml         # Connect podinfo to Argo CD
+|       `-- sample-app.yml         # Connect podinfo and expose its HTTP ingress
 `-- values/
     `-- argocd.yml                 # Settings passed to the Argo CD chart
 ```
@@ -509,13 +509,24 @@ After syncing the AWX Project and launching the installation job:
 2. Watch it become **Synced** and **Healthy**. The resource tree shows the
    Deployment, Service, autoscaler and running pods. The AWX task creates the
    Application; its success does not mean podinfo is healthy yet.
-3. Open the demo from your workstation:
+3. Open **http://YOUR_K3S_NODE_IP/podinfo/**. The installation creates a Traefik
+   Ingress on port 80 that forwards `/podinfo` to `podinfo:9898`. Argo CD's
+   Kustomize patch configures podinfo's URL prefix and health probes so its UI
+   and API work under this path. Argo CD remains available at `/`.
+
+   To check the ingress:
+
+   ```sh
+   kubectl -n podinfo get ingress podinfo
+   ```
+
+   Alternatively, forward the demo from your workstation:
 
    ```sh
    kubectl -n podinfo port-forward svc/podinfo 9898:9898
    ```
 
-   Keep the command running and visit **http://127.0.0.1:9898**.
+   Keep the command running and visit **http://127.0.0.1:9898/podinfo/**.
 
 Automatic sync follows the upstream `master` branch. `selfHeal: true` corrects
 manual changes in the cluster, and `prune: true` removes resources deleted from
