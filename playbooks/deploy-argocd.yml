@@ -8,6 +8,7 @@
   vars:
     argocd_namespace: argocd
     argocd_chart_version: "10.14.0"
+    argocd_sample_app_enabled: true
     kubeconfig: "{{ lookup('ansible.builtin.env', 'KUBECONFIG') }}"
 
   tasks:
@@ -22,3 +23,7 @@
 
     - name: Expose Argo CD on port 80
       ansible.builtin.import_tasks: tasks/ingress.yml
+
+    - name: Connect the podinfo sample application
+      ansible.builtin.import_tasks: tasks/sample-app.yml
+      when: argocd_sample_app_enabled | bool

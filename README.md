@@ -5,7 +5,8 @@ and the test playbook ran successfully. The next step is to give the deployment
 job the tools and Kubernetes credential it needs, then run the Argo CD playbook.
 
 This project creates the `argocd` namespace and installs or upgrades Argo CD there.
-It does not reinstall k3s or AWX. It does not create any Argo CD Applications yet.
+It also connects the open source [podinfo](https://github.com/stefanprodan/podinfo)
+demo as an Argo CD Application. It does not reinstall k3s or AWX.
 
 ## 1. How Ansible works
 
@@ -46,8 +47,8 @@ k3s runs Argo CD pods in the argocd namespace
 **k3s** is the Kubernetes cluster where Argo CD runs.
 **Helm** installs a packaged set of Kubernetes resources called a **chart**.
 An installed chart is a **release**; our release is named `argocd`.
-**Argo CD** is the application being installed. Later, you can use it to deploy
-applications from Git.
+**Argo CD** watches the podinfo Git repository and deploys its Kubernetes manifests
+into the `podinfo` namespace.
 
 ## 2. What each file does
 
@@ -65,7 +66,8 @@ applications from Git.
 |       |-- check.yml              # Check that KUBECONFIG was supplied
 |       |-- namespace.yml          # Ensure the namespace exists
 |       |-- install.yml            # Register the chart repository and deploy
-|       `-- ingress.yml            # Expose Argo CD over HTTP on port 80
+|       |-- ingress.yml            # Expose Argo CD over HTTP on port 80
+|       `-- sample-app.yml         # Connect podinfo to Argo CD
 `-- values/
     `-- argocd.yml                 # Settings passed to the Argo CD chart
 ```
@@ -145,7 +147,7 @@ vars:
   a kubeconfig file. It reads the path, not the file's contents.
 - `{{ ... }}` is Ansible's template syntax: evaluate the expression and use its value.
 
-The `tasks` section imports the four task files in order:
+The `tasks` section imports the five task files in order:
 
 ```yaml
 - name: Check cluster credential
@@ -491,6 +493,49 @@ Deleting that Secret does not rotate the password by itself.
 An AWX account does not become an Argo CD account. Use Argo CD accounts or SSO
 and explicit permissions when adding more users.
 See [Argo CD getting started](https://argo-cd.readthedocs.io/en/stable/getting_started/).
+
+### Try the open source podinfo application
+
+The final installation task creates an Argo CD `Application` named `podinfo`.
+Ansible creates the Application; Argo CD fetches the public
+[podinfo repository](https://github.com/stefanprodan/podinfo), renders its
+`kustomize` directory and deploys it into the same cluster, in a separate
+`podinfo` namespace. No Git credentials are required for this public repository.
+The cluster needs access to GitHub and the container registry `ghcr.io`.
+
+After syncing the AWX Project and launching the installation job:
+
+1. Open Argo CD at `http://YOUR_K3S_NODE_IP` and select **podinfo**.
+2. Watch it become **Synced** and **Healthy**. The resource tree shows the
+   Deployment, Service, autoscaler and running pods. The AWX task creates the
+   Application; its success does not mean podinfo is healthy yet.
+3. Open the demo from your workstation:
+
+   ```sh
+   kubectl -n podinfo port-forward svc/podinfo 9898:9898
+   ```
+
+   Keep the command running and visit **http://127.0.0.1:9898**.
+
+Automatic sync follows the upstream `master` branch. `selfHeal: true` corrects
+manual changes in the cluster, and `prune: true` removes resources deleted from
+the source manifests. These are
+[Argo CD Application settings](https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/).
+To see self-healing, change the demo's UI color directly in Kubernetes:
+
+```sh
+kubectl -n podinfo set env deployment/podinfo PODINFO_UI_COLOR='#ff9900'
+```
+
+Argo CD detects the difference and restores the color defined in Git. In the UI,
+use **Refresh** and inspect the resource diff; the difference may disappear
+quickly as self-healing runs. For a lasting change, fork podinfo, update the
+Application's `repoURL` in `playbooks/tasks/sample-app.yml`, and commit your
+changes to that fork. Argo CD will then sync your Git changes automatically.
+
+To skip creating or updating the sample Application on future AWX runs, set
+`argocd_sample_app_enabled: false` in Extra Variables. This does not remove an
+already deployed Application or its resources.
 
 ## 12. Change settings and rerun
 

@@ -1,0 +1,33 @@
+---
+- name: Create the podinfo Argo CD Application
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: true
+    state: present
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: podinfo
+        namespace: "{{ argocd_namespace }}"
+      spec:
+        project: default
+        source:
+          repoURL: https://github.com/stefanprodan/podinfo.git
+          targetRevision: master
+          path: kustomize
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: podinfo
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+          retry:
+            limit: 5
+            backoff:
+              duration: 5s
+              factor: 2
+              maxDuration: 3m
