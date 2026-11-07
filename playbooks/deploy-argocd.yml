@@ -19,3 +19,6 @@
 
     - name: Install Argo CD
       ansible.builtin.import_tasks: tasks/install.yml
+
+    - name: Expose Argo CD on port 80
+      ansible.builtin.import_tasks: tasks/ingress.yml

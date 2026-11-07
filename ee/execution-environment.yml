@@ -21,7 +21,7 @@ dependencies:
     - git [platform:rpm]
     - tar [platform:rpm]
     - gzip [platform:rpm]
-    - curl [platform:rpm]
+    - curl-minimal [platform:rpm]
 
 additional_build_steps:
   append_base:

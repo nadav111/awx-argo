@@ -2,9 +2,13 @@
 server:
   service:
     type: ClusterIP
+  ingress:
+    # Managed by the Ansible ingress task after Helm installs the server.
+    enabled: false
 configs:
   params:
-    server.insecure: false
+    # The ingress exposes HTTP on port 80 and forwards HTTP to the service.
+    server.insecure: true
   cm:
     exec.enabled: "false"
   rbac:

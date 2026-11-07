@@ -64,7 +64,8 @@ applications from Git.
 |   `-- tasks/
 |       |-- check.yml              # Check that KUBECONFIG was supplied
 |       |-- namespace.yml          # Ensure the namespace exists
-|       `-- install.yml            # Register the chart repository and deploy
+|       |-- install.yml            # Register the chart repository and deploy
+|       `-- ingress.yml            # Expose Argo CD over HTTP on port 80
 `-- values/
     `-- argocd.yml                 # Settings passed to the Argo CD chart
 ```
@@ -144,7 +145,7 @@ vars:
   a kubeconfig file. It reads the path, not the file's contents.
 - `{{ ... }}` is Ansible's template syntax: evaluate the expression and use its value.
 
-The `tasks` section imports the three task files in order:
+The `tasks` section imports the four task files in order:
 
 ```yaml
 - name: Check cluster credential
@@ -237,8 +238,9 @@ File: [values/argocd.yml](values/argocd.yml).
 
 | Setting | Effect |
 | --- | --- |
-| `server.service.type: ClusterIP` | Keep the service inside the cluster; no public IP or ingress is created |
-| `configs.params.server.insecure: false` | Keep HTTPS enabled on the Argo CD server |
+| `server.service.type: ClusterIP` | Keep the backend service inside the cluster |
+| `server.ingress.enabled: false` | Let the Ansible task manage the Ingress separately from Helm |
+| `configs.params.server.insecure: true` | Serve HTTP for ingress access on port 80 |
 | `configs.cm.exec.enabled: "false"` | Disable Argo CD's browser terminal feature |
 | `configs.rbac.policy.default: ""` | Grant no extra default role to authenticated users; assign permissions explicitly |
 
@@ -287,6 +289,11 @@ attach registry credentials there if the image is private.
 
 Building the image on the server does not automatically make it available to
 k3s. Pushing it to a reachable registry lets AWX pull it for the job.
+For an offline transfer, export the image with `docker save`, copy the archive
+to the server, and import it with `k3s ctr -n k8s.io images import ARCHIVE`.
+For AWX jobs running as Kubernetes pods, select the imported image and set its
+pull policy to **Never pull container before running**. Import onto every node
+where the job can run. Separate execution nodes need the image in their own runtime.
 The base image tag and transitive dependencies can change between builds; use
 an approved image digest when you need reproducible production builds.
 
@@ -354,7 +361,7 @@ Paste this into **Injector Configuration**:
 file:
   template.kubeconfig: '{{ kube_config }}'
 env:
-  KUBECONFIG: '{{ awx.filename.kubeconfig }}'
+  KUBECONFIG: '{{ tower.filename.kubeconfig }}'
 ```
 
 The input is a secret text field. The injector writes that text to a temporary
@@ -423,6 +430,7 @@ On a machine with `kubectl` configured for this cluster:
 ```sh
 kubectl -n argocd get pods
 kubectl -n argocd get svc argocd-server
+kubectl -n argocd get ingress argocd-server
 ```
 
 `-n argocd` selects the namespace. Pods should become ready; the service should
@@ -431,21 +439,38 @@ of `kubectl` if your Linux user has no kubeconfig configured.
 
 ## 11. Open Argo CD as a user
 
-On **your workstation**, with a working kubeconfig for the cluster:
+After Helm installs Argo CD, the playbook runs
+[playbooks/tasks/ingress.yml](playbooks/tasks/ingress.yml) automatically. This
+idempotent task creates a Kubernetes Ingress for Traefik, which k3s installs by
+default. It uses the `traefik` ingress class and `web` entrypoint on port 80,
+forwarding `/` to `argocd-server:80` without a hostname restriction.
+See [k3s networking services](https://docs.k3s.io/networking/networking-services).
+
+Sync the AWX Project and run the deployment job, then open
+**http://YOUR_K3S_NODE_IP** using a node IP reachable from your workstation where
+Traefik is exposed. No DNS entry or TLS Secret is required. Port 80 must be
+reachable, and Traefik must not globally redirect HTTP to HTTPS. HTTP traffic,
+including login credentials, is unencrypted.
+
+For CLI access through this Ingress, use:
 
 ```sh
-kubectl -n argocd port-forward --address 127.0.0.1 svc/argocd-server 8080:443
+argocd login YOUR_K3S_NODE_IP:80 --plaintext --grpc-web
 ```
 
-Keep that terminal open. Visit **https://127.0.0.1:8080** in your workstation's
-browser. This forwards local port `8080` to service port `443` inside k3s.
+As an alternative, on **your workstation** with a working kubeconfig:
+
+```sh
+kubectl -n argocd port-forward --address 127.0.0.1 svc/argocd-server 8080:80
+```
+
+Keep that terminal open. Visit **http://127.0.0.1:8080** in your workstation's
+browser. This forwards local port `8080` to service port `80` inside k3s.
 It binds only to your workstation's loopback address.
 
 If you run port-forward on the server instead, that localhost address belongs
 to the server. It does not automatically open port 8080 on your laptop.
 
-Argo CD initially uses a self-signed certificate. Verify it before trusting the
-browser exception; configure a trusted certificate for regular shared access.
 In a second private terminal, retrieve the initial password:
 
 ```sh

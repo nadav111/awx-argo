@@ -1,6 +1,7 @@
 .venv/
 .validation/
 context/
+artifacts/
 __pycache__/
 *.retry
 *.tgz

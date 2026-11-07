@@ -1,0 +1,26 @@
+---
+- name: Create Argo CD HTTP ingress
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: true
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: argocd-server
+        namespace: "{{ argocd_namespace }}"
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: web
+      spec:
+        ingressClassName: traefik
+        rules:
+          - http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: argocd-server
+                      port:
+                        number: 80
